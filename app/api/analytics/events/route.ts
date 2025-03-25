@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { query } from "@/lib/db"
+import { rawQuery } from "@/lib/db"
 import { handleApiError, ErrorCode } from "@/lib/error-handler"
 
 // Handle analytics events
@@ -32,14 +32,14 @@ export const POST = async (req: NextRequest) => {
       // Batch insert events
       const placeholders = values
         .map(
-          (_, i) =>
+          (_: any, i: number) =>
             `($${i * 9 + 1}, $${i * 9 + 2}, $${i * 9 + 3}, $${i * 9 + 4}, $${i * 9 + 5}, $${i * 9 + 6}, $${i * 9 + 7}, $${i * 9 + 8}, $${i * 9 + 9})`,
         )
         .join(", ")
 
-      const flatValues = values.flat()
+      const flatValues = values.flat();
 
-      await query(
+      await rawQuery(
         `
         INSERT INTO analytics_events 
         (category, action, label, value, properties, timestamp, user_id, user_role, user_region)

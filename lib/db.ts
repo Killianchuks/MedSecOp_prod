@@ -3,7 +3,7 @@ import { drizzle } from "drizzle-orm/neon-http"
 import { createClient } from "@supabase/supabase-js"
 import type { PostgrestError } from "@supabase/supabase-js"
 import { createHash, randomBytes } from "crypto"
-import { users, settings, cases } from "./db/schema"
+import { users, settings, cases, systemSettings } from "./db/schema"
 
 // Initialize Neon SQL client
 const sql = neon(process.env.DATABASE_URL || process.env.NEON_DATABASE_URL || "")
@@ -50,6 +50,12 @@ async function checkDatabaseConnection(): Promise<boolean> {
     console.error("Database connection check failed:", error)
     return false
   }
+}
+
+
+export async function rawQuery<T = any>(text: string, params: any[] = []): Promise<T[]> {
+  const result = await sql(text, params)
+  return result as T[]
 }
 
 /**
@@ -117,5 +123,5 @@ export async function withTransaction<T>(
   return { data: results as T, error: null }
 }
 
-export { sql, db, checkDatabaseConnection, hashPassword, verifyPassword, generateSalt, users, settings, cases }
+export { sql, db, checkDatabaseConnection, hashPassword, verifyPassword, generateSalt, users, settings, cases, systemSettings }
 

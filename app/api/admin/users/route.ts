@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server"
 import { db, users, hashPassword, generateSalt } from "@/lib/db"
 import { getCurrentUser } from "@/lib/auth"
-import { eq, like } from "drizzle-orm"
+import { eq, or, like } from "drizzle-orm"
+import { roleEnum } from "@/lib/db/schema";
 
 export async function GET(req: Request) {
   try {
@@ -15,23 +16,30 @@ export async function GET(req: Request) {
 
     // Get query parameters
     const { searchParams } = new URL(req.url)
-    const role = searchParams.get("role")
+    const roleParam = searchParams.get("role")
+    const role = roleParam as typeof roleEnum.enumValues[number] | null;
     const search = searchParams.get("search")
 
     // Build the query
     let query = db.select().from(users)
 
     // Add filters if provided
-    if (role) {
-      query = query.where(eq(users.role, role))
+    
+    let conditions = [];
+
+    if (role && roleEnum.enumValues.includes(role)) {
+      conditions.push(eq(users.role, role));
     }
 
     if (search) {
-      query = query.where(
-        like(users.firstName, `%${search}%`) || like(users.lastName, `%${search}%`) || like(users.email, `%${search}%`),
-      )
+      conditions.push(
+        or(
+          like(users.firstName, `%${search}%`),
+          like(users.lastName, `%${search}%`),
+          like(users.email, `%${search}%`)
+        )
+      );
     }
-
     // Execute the query
     const result = await query
 

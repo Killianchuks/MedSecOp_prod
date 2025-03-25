@@ -1,4 +1,5 @@
 import type { NextRequest } from "next/server"
+import { NextResponse } from "next/server"
 import { jwtVerify, SignJWT } from "jose"
 import type { NextApiRequest, NextApiResponse } from "next"
 import type { GetServerSidePropsContext } from "next"
@@ -6,16 +7,17 @@ import { parse } from "cookie"
 
 export enum UserRole {
   ADMIN = "ADMIN",
+  USER = "USER",
   DOCTOR = "DOCTOR",
   PATIENT = "PATIENT",
 }
 
 export interface User {
-  id: string
-  email: string
-  firstName: string
-  lastName: string
-  role: UserRole
+  id: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  role: UserRole;
 }
 
 export interface Session {
@@ -209,41 +211,44 @@ export async function getCurrentUser(req?: NextApiRequest): Promise<User | null>
   }
 }
 
-// Higher-order function to protect API routes with authentication
-export function withAuth(handler: Function) {
-  return async (req: NextApiRequest, res: NextApiResponse) => {
-    // Get the token from the request cookies
-    const token = req.cookies.session_token
-
+/**
+ * withAuth wraps an App Router handler to protect routes with authentication
+ * and (optionally) role checking.
+ * @param handler - The handler that accepts (req, user)
+ * @param allowedRoles - An array of allowed roles for this route.
+ */
+export function withAuth(
+  handler: (req: NextRequest, user: User) => Promise<NextResponse>,
+  allowedRoles: UserRole[]
+) {
+  return async (req: NextRequest): Promise<NextResponse> => {
+    // Example: Retrieve and verify token (this is a simplified example)
+    const token = req.cookies.get("session_token")?.value;
     if (!token) {
-      return res.status(401).json({ error: "Unauthorized" })
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-
     try {
-      // Verify the JWT token
-      const { payload } = await jwtVerify(token, JWT_SECRET)
-
-      // Check if the token has expired
-      const expires = new Date((payload.exp as number) * 1000)
-      if (Date.now() > expires.getTime()) {
-        return res.status(401).json({ error: "Token expired" })
-      }
-      // Add the user to the request
-      ;(req as any).user = {
+      const { payload } = await jwtVerify(token, new TextEncoder().encode(process.env.NEXTAUTH_SECRET || "fallback-secret"));
+      const user: User = {
         id: payload.id as string,
         email: payload.email as string,
         firstName: payload.firstName as string,
         lastName: payload.lastName as string,
         role: payload.role as UserRole,
+      };
+
+      // Check allowed roles
+      if (!allowedRoles.includes(user.role)) {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
       }
 
-      // Call the handler
-      return handler(req, res)
+      // Call the handler with the authenticated user
+      return handler(req, user);
     } catch (error) {
-      console.error("Error verifying token:", error)
-      return res.status(401).json({ error: "Invalid token" })
+      console.error("Error verifying token:", error);
+      return NextResponse.json({ error: "Invalid token" }, { status: 401 });
     }
-  }
+  };
 }
 
 // Function to protect server-side rendered pages
