@@ -35,13 +35,48 @@ export function DoctorRegionForm({ onSave, initialRegions = [], initialNotes = "
   }
 
   // Group regions by continent for better organization
-  const continents = {
-    "North America": ["US", "CA"],
-    Europe: ["EU", "UK"],
-    "Asia Pacific": ["AU", "ASIA"],
-    Africa: ["AFRICA"],
-    "South America": ["SOUTH_AMERICA"],
-    Other: ["OTHER"],
+  const continents: Record<string, RegionCode[]> = {
+    "North America": ["us" as RegionCode, "canada" as RegionCode],
+    Europe: ["eu" as RegionCode, "uk" as RegionCode],
+    "Asia Pacific": ["australia" as RegionCode, "asia" as RegionCode],
+    Africa: ["africa" as RegionCode],
+    "South America": ["south_america" as RegionCode],
+    Other: ["global" as RegionCode],
+  }
+
+  // Add safety check for rendering regions
+  const renderRegion = (regionCode: RegionCode) => {
+    if (!regions[regionCode]) {
+      console.warn(`Region not found: ${regionCode}`)
+      return null
+    }
+
+    const region = regions[regionCode]
+    return (
+      <div key={region.code} className="flex items-start space-x-3 p-3 border rounded-md">
+        <Checkbox
+          id={`region-${region.code}`}
+          checked={selectedRegions.includes(regionCode)}
+          onCheckedChange={(checked) => handleRegionChange(regionCode, checked as boolean)}
+        />
+        <div className="space-y-1">
+          <Label htmlFor={`region-${region.code}`} className="font-medium cursor-pointer">
+            {region.name}
+          </Label>
+          {region.currencySymbol && (
+            <p className="text-xs text-muted-foreground">
+              Currency: {region.currencyCode} ({region.currencySymbol})
+            </p>
+          )}
+          <p className="text-xs text-muted-foreground">
+            Cross-border access:{" "}
+            {region.allowedCrossBorderRegions.length > 0
+              ? region.allowedCrossBorderRegions.map((r) => regions[r as RegionCode]?.name || r).join(", ")
+              : "None"}
+          </p>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -74,34 +109,7 @@ export function DoctorRegionForm({ onSave, initialRegions = [], initialNotes = "
             {Object.entries(continents).map(([continent, regionCodes]) => (
               <div key={continent} className="space-y-2">
                 <h3 className="text-sm font-semibold">{continent}</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {regionCodes.map((regionCode) => {
-                    const region = regions[regionCode as RegionCode]
-                    return (
-                      <div key={region.code} className="flex items-start space-x-3 p-3 border rounded-md">
-                        <Checkbox
-                          id={`region-${region.code}`}
-                          checked={selectedRegions.includes(region.code)}
-                          onCheckedChange={(checked) => handleRegionChange(region.code, checked as boolean)}
-                        />
-                        <div className="space-y-1">
-                          <Label htmlFor={`region-${region.code}`} className="font-medium cursor-pointer">
-                            {region.name}
-                          </Label>
-                          <p className="text-xs text-muted-foreground">
-                            Currency: {region.currency} ({region.currencySymbol})
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            Cross-border access:{" "}
-                            {region.allowedCrossBorderRegions.length > 0
-                              ? region.allowedCrossBorderRegions.map((r) => regions[r].name).join(", ")
-                              : "None"}
-                          </p>
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">{regionCodes.map(renderRegion)}</div>
               </div>
             ))}
           </div>

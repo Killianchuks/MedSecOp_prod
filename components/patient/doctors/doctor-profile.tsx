@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Calendar, Video, Star, Clock, User, Mail, ExternalLink, Globe, AlertTriangle } from "lucide-react"
 import Link from "next/link"
-import { useRegion, type RegionCode, regions } from "@/contexts/region-context"
+import { useRegion, RegionCode, regions } from "@/contexts/region-context"
 
 interface DoctorProfileProps {
   doctorId: string
@@ -15,7 +15,7 @@ interface DoctorProfileProps {
 
 export function DoctorProfile({ doctorId }: DoctorProfileProps) {
   const [showCalendar, setShowCalendar] = useState(false)
-  const { currentRegion, availableRegions, formatPrice } = useRegion()
+  const { currentRegion, availableRegions } = useRegion()
 
   // This would be fetched from an API in a real implementation
   const doctor = {
@@ -32,7 +32,7 @@ export function DoctorProfile({ doctorId }: DoctorProfileProps) {
       "Board Certified in Cardiovascular Disease",
       "Board Certified in Interventional Cardiology",
     ],
-    regions: ["US", "CA", "SOUTH_AMERICA"] as RegionCode[],
+    regions: [RegionCode.US, RegionCode.CANADA, RegionCode.SOUTH_AMERICA],
     consultations: {
       available: true,
       hourlyRate: 250,
@@ -120,7 +120,9 @@ export function DoctorProfile({ doctorId }: DoctorProfileProps) {
             <div className="space-y-3">
               <div className="flex items-center gap-2">
                 <Clock className="h-4 w-4 text-blue-600" />
-                <span className="text-blue-700">{formatPrice(doctor.consultations.hourlyRate)} per hour</span>
+                <span className="text-blue-700">
+                  {currentRegion.formatPrice(doctor.consultations.hourlyRate)} per hour
+                </span>
               </div>
 
               <div className="flex items-center gap-2">

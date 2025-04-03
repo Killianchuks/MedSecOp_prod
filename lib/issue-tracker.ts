@@ -1,4 +1,5 @@
 import { query, withTransaction } from "./db"
+import type { PoolClient } from "pg"
 import type { User } from "./auth"
 import { logAuditEvent } from "./audit"
 
@@ -50,13 +51,37 @@ export interface Issue {
   resolvedAt?: Date
 }
 
+// Database row type
+interface IssueRow {
+  id: string
+  title: string
+  description: string
+  type: IssueType
+  status: IssueStatus
+  priority: IssuePriority
+  reported_by: string
+  assigned_to?: string
+  component?: string
+  affected_pages?: string[]
+  steps_to_reproduce?: string[]
+  expected_behavior?: string
+  actual_behavior?: string
+  browser_info?: string
+  device_info?: string
+  screenshots?: string[]
+  created_at: Date
+  updated_at: Date
+  resolved_at?: Date
+  [key: string]: any // Allow for additional properties
+}
+
 // Create a new issue
 export async function createIssue(
   issueData: Partial<Issue>,
   user: User,
 ): Promise<{ issue: Issue | null; error: string | null }> {
   try {
-    return await withTransaction(async (client) => {
+    return await withTransaction(async (client: PoolClient) => {
       // Insert the issue
       const result = await client.query(
         `INSERT INTO issues (
@@ -84,7 +109,7 @@ export async function createIssue(
         ],
       )
 
-      const newIssue = result.rows[0]
+      const newIssue = result.rows[0] as IssueRow
 
       // Log issue creation
       await logAuditEvent(user.id, "issue_created", {
@@ -208,7 +233,7 @@ export async function getIssues(
       paginatedParams,
     )
 
-    const issues = result.rows.map((row) => ({
+    const issues = result.rows.map((row: IssueRow) => ({
       id: row.id,
       title: row.title,
       description: row.description,
@@ -244,7 +269,7 @@ export async function updateIssue(
   user: User,
 ): Promise<{ success: boolean; error: string | null }> {
   try {
-    return await withTransaction(async (client) => {
+    return await withTransaction(async (client: PoolClient) => {
       // Get the current issue
       const issueResult = await client.query("SELECT * FROM issues WHERE id = $1", [issueId])
 
@@ -252,7 +277,7 @@ export async function updateIssue(
         return { success: false, error: "Issue not found" }
       }
 
-      const existingIssue = issueResult.rows[0]
+      const existingIssue = issueResult.rows[0] as IssueRow
 
       // Build the update query dynamically based on provided fields
       const updateFields: string[] = []

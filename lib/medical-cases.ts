@@ -1,7 +1,13 @@
 import { withTransaction, query } from "./db"
 import { logAuditEvent } from "./audit"
 import { type User, UserRole } from "./auth"
-import { supabaseAdmin } from "@/lib/db"
+import { createClient } from "@supabase/supabase-js"
+
+// Initialize Supabase Admin client
+export const supabaseAdmin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL || "",
+  process.env.SUPABASE_SERVICE_ROLE_KEY || "",
+)
 
 // Case status enum
 export enum CaseStatus {
@@ -44,6 +50,32 @@ export interface MedicalCase {
   reviewPackage?: string
   preferredLanguage?: string
   videoConsultation?: boolean
+}
+
+// Database row type that matches the database column names
+interface MedicalCaseRow {
+  id: string
+  patient_id: string
+  doctor_id?: string
+  title: string
+  description: string
+  specialty: string
+  status: CaseStatus
+  priority: CasePriority
+  payment_id?: string
+  created_at: Date
+  updated_at: Date
+  completed_at?: Date
+  medical_history?: Record<string, any>
+  medications?: string[]
+  allergies?: string[]
+  symptoms?: string[]
+  attachments?: string[]
+  notes?: string
+  review_package?: string
+  preferred_language?: string
+  video_consultation?: boolean
+  [key: string]: any // Allow for additional properties
 }
 
 // Get all cases for a patient
@@ -98,7 +130,7 @@ export async function getCaseById(caseId: string) {
 }
 
 // Create a new case
-export async function createCase(caseData: Partial<MedicalCase>) {
+export async function createCase(caseData: Partial<MedicalCaseRow>) {
   return withTransaction(async (client) => {
     try {
       // Insert the case
@@ -121,7 +153,7 @@ export async function createCase(caseData: Partial<MedicalCase>) {
 }
 
 // Update a case
-export async function updateCase(caseId: string, caseData: Partial<MedicalCase>, userId: string) {
+export async function updateCase(caseId: string, caseData: Partial<MedicalCaseRow>, userId: string) {
   return withTransaction(async (client) => {
     try {
       // Update the case
@@ -171,6 +203,61 @@ export async function deleteCase(caseId: string, userId: string) {
   })
 }
 
+// Helper function to convert database row to MedicalCase interface
+function rowToMedicalCase(row: MedicalCaseRow): MedicalCase {
+  return {
+    id: row.id,
+    patientId: row.patient_id,
+    doctorId: row.doctor_id,
+    title: row.title,
+    description: row.description,
+    specialty: row.specialty,
+    status: row.status,
+    priority: row.priority,
+    paymentId: row.payment_id,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    completedAt: row.completed_at,
+    medicalHistory: row.medical_history,
+    medications: row.medications,
+    allergies: row.allergies,
+    symptoms: row.symptoms,
+    attachments: row.attachments,
+    notes: row.notes,
+    reviewPackage: row.review_package,
+    preferredLanguage: row.preferred_language,
+    videoConsultation: row.video_consultation,
+  }
+}
+
+// Helper function to convert MedicalCase interface to database row format
+function medicalCaseToRow(medicalCase: Partial<MedicalCase>): Partial<MedicalCaseRow> {
+  const row: Partial<MedicalCaseRow> = {}
+
+  if (medicalCase.patientId !== undefined) row.patient_id = medicalCase.patientId
+  if (medicalCase.doctorId !== undefined) row.doctor_id = medicalCase.doctorId
+  if (medicalCase.title !== undefined) row.title = medicalCase.title
+  if (medicalCase.description !== undefined) row.description = medicalCase.description
+  if (medicalCase.specialty !== undefined) row.specialty = medicalCase.specialty
+  if (medicalCase.status !== undefined) row.status = medicalCase.status
+  if (medicalCase.priority !== undefined) row.priority = medicalCase.priority
+  if (medicalCase.paymentId !== undefined) row.payment_id = medicalCase.paymentId
+  if (medicalCase.createdAt !== undefined) row.created_at = medicalCase.createdAt
+  if (medicalCase.updatedAt !== undefined) row.updated_at = medicalCase.updatedAt
+  if (medicalCase.completedAt !== undefined) row.completed_at = medicalCase.completedAt
+  if (medicalCase.medicalHistory !== undefined) row.medical_history = medicalCase.medicalHistory
+  if (medicalCase.medications !== undefined) row.medications = medicalCase.medications
+  if (medicalCase.allergies !== undefined) row.allergies = medicalCase.allergies
+  if (medicalCase.symptoms !== undefined) row.symptoms = medicalCase.symptoms
+  if (medicalCase.attachments !== undefined) row.attachments = medicalCase.attachments
+  if (medicalCase.notes !== undefined) row.notes = medicalCase.notes
+  if (medicalCase.reviewPackage !== undefined) row.review_package = medicalCase.reviewPackage
+  if (medicalCase.preferredLanguage !== undefined) row.preferred_language = medicalCase.preferredLanguage
+  if (medicalCase.videoConsultation !== undefined) row.video_consultation = medicalCase.videoConsultation
+
+  return row
+}
+
 // Create a new medical case
 export async function createMedicalCase(
   caseData: Partial<MedicalCase>,
@@ -178,6 +265,10 @@ export async function createMedicalCase(
 ): Promise<{ case: MedicalCase | null; error: string | null }> {
   try {
     return await withTransaction(async (client) => {
+      // Convert to database row format
+      const rowData = medicalCaseToRow(caseData)
+      rowData.patient_id = userId // Set the patient ID to the user ID
+
       // Insert the case
       const result = await client.query(
         `INSERT INTO medical_cases (
@@ -187,21 +278,21 @@ export async function createMedicalCase(
         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) 
         RETURNING *`,
         [
-          userId,
-          caseData.title,
-          caseData.description,
-          caseData.specialty,
-          caseData.status || CaseStatus.DRAFT,
-          caseData.priority || CasePriority.MEDIUM,
-          caseData.paymentId,
-          caseData.medicalHistory || {},
-          caseData.medications || [],
-          caseData.allergies || [],
-          caseData.symptoms || [],
-          caseData.notes,
-          caseData.reviewPackage,
-          caseData.preferredLanguage,
-          caseData.videoConsultation || false,
+          rowData.patient_id,
+          rowData.title,
+          rowData.description,
+          rowData.specialty,
+          rowData.status || CaseStatus.DRAFT,
+          rowData.priority || CasePriority.MEDIUM,
+          rowData.payment_id,
+          rowData.medical_history || {},
+          rowData.medications || [],
+          rowData.allergies || [],
+          rowData.symptoms || [],
+          rowData.notes,
+          rowData.review_package,
+          rowData.preferred_language,
+          rowData.video_consultation || false,
         ],
       )
 
@@ -214,29 +305,7 @@ export async function createMedicalCase(
       })
 
       return {
-        case: {
-          id: newCase.id,
-          patientId: newCase.patient_id,
-          doctorId: newCase.doctor_id,
-          title: newCase.title,
-          description: newCase.description,
-          specialty: newCase.specialty,
-          status: newCase.status,
-          priority: newCase.priority,
-          paymentId: newCase.payment_id,
-          createdAt: newCase.created_at,
-          updatedAt: newCase.updated_at,
-          completedAt: newCase.completed_at,
-          medicalHistory: newCase.medical_history,
-          medications: newCase.medications,
-          allergies: newCase.allergies,
-          symptoms: newCase.symptoms,
-          attachments: newCase.attachments,
-          notes: newCase.notes,
-          reviewPackage: newCase.review_package,
-          preferredLanguage: newCase.preferred_language,
-          videoConsultation: newCase.video_consultation,
-        },
+        case: rowToMedicalCase(newCase),
         error: null,
       }
     })
@@ -273,6 +342,9 @@ export async function updateMedicalCase(
         return { success: false, error: "Insufficient permissions to update this case" }
       }
 
+      // Convert to database row format
+      const rowUpdates = medicalCaseToRow(updates)
+
       // Build the update query dynamically based on provided fields
       const updateFields: string[] = []
       const queryParams: any[] = []
@@ -288,21 +360,21 @@ export async function updateMedicalCase(
       }
 
       // Add all possible update fields
-      addUpdateField("title", updates.title)
-      addUpdateField("description", updates.description)
-      addUpdateField("specialty", updates.specialty)
-      addUpdateField("status", updates.status)
-      addUpdateField("priority", updates.priority)
-      addUpdateField("doctor_id", updates.doctorId)
-      addUpdateField("payment_id", updates.paymentId)
-      addUpdateField("medical_history", updates.medicalHistory)
-      addUpdateField("medications", updates.medications)
-      addUpdateField("allergies", updates.allergies)
-      addUpdateField("symptoms", updates.symptoms)
-      addUpdateField("notes", updates.notes)
-      addUpdateField("review_package", updates.reviewPackage)
-      addUpdateField("preferred_language", updates.preferredLanguage)
-      addUpdateField("video_consultation", updates.videoConsultation)
+      addUpdateField("title", rowUpdates.title)
+      addUpdateField("description", rowUpdates.description)
+      addUpdateField("specialty", rowUpdates.specialty)
+      addUpdateField("status", rowUpdates.status)
+      addUpdateField("priority", rowUpdates.priority)
+      addUpdateField("doctor_id", rowUpdates.doctor_id)
+      addUpdateField("payment_id", rowUpdates.payment_id)
+      addUpdateField("medical_history", rowUpdates.medical_history)
+      addUpdateField("medications", rowUpdates.medications)
+      addUpdateField("allergies", rowUpdates.allergies)
+      addUpdateField("symptoms", rowUpdates.symptoms)
+      addUpdateField("notes", rowUpdates.notes)
+      addUpdateField("review_package", rowUpdates.review_package)
+      addUpdateField("preferred_language", rowUpdates.preferred_language)
+      addUpdateField("video_consultation", rowUpdates.video_consultation)
 
       // Add completed_at if status is being set to COMPLETED
       if (updates.status === CaseStatus.COMPLETED && existingCase.status !== CaseStatus.COMPLETED) {
@@ -373,29 +445,7 @@ export async function getMedicalCase(
     })
 
     return {
-      case: {
-        id: medicalCase.id,
-        patientId: medicalCase.patient_id,
-        doctorId: medicalCase.doctor_id,
-        title: medicalCase.title,
-        description: medicalCase.description,
-        specialty: medicalCase.specialty,
-        status: medicalCase.status,
-        priority: medicalCase.priority,
-        paymentId: medicalCase.payment_id,
-        createdAt: medicalCase.created_at,
-        updatedAt: medicalCase.updated_at,
-        completedAt: medicalCase.completed_at,
-        medicalHistory: medicalCase.medical_history,
-        medications: medicalCase.medications,
-        allergies: medicalCase.allergies,
-        symptoms: medicalCase.symptoms,
-        attachments: medicalCase.attachments,
-        notes: medicalCase.notes,
-        reviewPackage: medicalCase.review_package,
-        preferredLanguage: medicalCase.preferred_language,
-        videoConsultation: medicalCase.video_consultation,
-      },
+      case: rowToMedicalCase(medicalCase),
       error: null,
     }
   } catch (error: any) {
@@ -449,29 +499,7 @@ export async function getUserMedicalCases(
     )
 
     // Map the results to our interface
-    const cases = result.rows.map((row) => ({
-      id: row.id,
-      patientId: row.patient_id,
-      doctorId: row.doctor_id,
-      title: row.title,
-      description: row.description,
-      specialty: row.specialty,
-      status: row.status,
-      priority: row.priority,
-      paymentId: row.payment_id,
-      createdAt: row.created_at,
-      updatedAt: row.updated_at,
-      completedAt: row.completed_at,
-      medicalHistory: row.medical_history,
-      medications: row.medications,
-      allergies: row.allergies,
-      symptoms: row.symptoms,
-      attachments: row.attachments,
-      notes: row.notes,
-      reviewPackage: row.review_package,
-      preferredLanguage: row.preferred_language,
-      videoConsultation: row.video_consultation,
-    }))
+    const cases = result.rows.map(rowToMedicalCase)
 
     return { cases, total, error: null }
   } catch (error: any) {

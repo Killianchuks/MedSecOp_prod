@@ -103,6 +103,17 @@ export enum LogSeverity {
   CRITICAL = "critical",
 }
 
+// Type guard to check if an object is an ErrorResponse
+function isErrorResponse(error: unknown): error is ErrorResponse {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    "message" in error &&
+    typeof (error as ErrorResponse).message === "string"
+  )
+}
+
 // Log error with appropriate severity
 export async function logError(
   error: Error | ErrorResponse | string,
@@ -110,10 +121,19 @@ export async function logError(
   context?: Record<string, any>,
 ): Promise<void> {
   // Format the error message
-  const errorMessage = typeof error === "string" ? error : "message" in error ? error.message : error.toString()
+  let errorMessage: string
+  if (typeof error === "string") {
+    errorMessage = error
+  } else if (error instanceof Error) {
+    errorMessage = error.message
+  } else if (isErrorResponse(error)) {
+    errorMessage = error.message
+  } else {
+    errorMessage = "Unknown error"
+  }
 
   // Format the error code if available
-  const errorCode = "code" in error ? error.code : undefined
+  const errorCode = isErrorResponse(error) ? error.code : undefined
 
   // Combine all context information
   const logContext = {
@@ -164,7 +184,7 @@ export async function logError(
 
 // Helper to handle API errors consistently
 export async function handleApiError(
-  error: any,
+  error: unknown,
   defaultMessage = "An unexpected error occurred",
 ): Promise<ErrorResponse> {
   // Determine the appropriate error code
@@ -176,9 +196,8 @@ export async function handleApiError(
     message = error.message
 
     // Handle specific error types
-    if ("code" in error) {
-      // @ts-ignore - dynamic property
-      const code = error.code as string
+    if ("code" in error && typeof (error as any).code === "string") {
+      const code = (error as any).code as string
 
       if (code === "ECONNREFUSED" || code === "ETIMEDOUT") {
         errorCode = ErrorCode.SERVICE_UNAVAILABLE
@@ -197,18 +216,18 @@ export async function handleApiError(
     }
   } else if (typeof error === "object" && error !== null) {
     // Handle structured errors
-    if ("code" in error && typeof error.code === "string") {
+    if ("code" in error && typeof (error as any).code === "string") {
       // Check if it's already one of our error codes
-      const isKnownErrorCode = Object.values(ErrorCode).includes(error.code as ErrorCode)
-      errorCode = isKnownErrorCode ? (error.code as ErrorCode) : ErrorCode.INTERNAL_ERROR
+      const isKnownErrorCode = Object.values(ErrorCode).includes((error as any).code as ErrorCode)
+      errorCode = isKnownErrorCode ? ((error as any).code as ErrorCode) : ErrorCode.INTERNAL_ERROR
     }
 
-    if ("message" in error && typeof error.message === "string") {
-      message = error.message
+    if ("message" in error && typeof (error as any).message === "string") {
+      message = (error as any).message
     }
 
     if ("details" in error) {
-      details = error.details as Record<string, any>
+      details = (error as any).details as Record<string, any>
     }
   }
 
@@ -216,10 +235,9 @@ export async function handleApiError(
   const requestId = `req_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`
 
   // Log the error
-  const severity = errorCode.startsWith("system/") ? LogSeverity.ERROR : LogSeverity.WARNING
-  await logError({ code: errorCode, message }, severity, { requestId, originalError: error })
+  const severity = errorCode.startsWith("system/") ? LogSeverity.ERROR : LogSeverity.WARNING;
+  await logError(createErrorResponse(errorCode, message), severity, { requestId, originalError: error });
 
   // Return standardized error response
-  return createErrorResponse(errorCode, message, details, requestId)
+  return createErrorResponse(errorCode, message, details, requestId);
 }
-

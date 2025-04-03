@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { CaseDetail } from "./case-detail"
+import { cn } from "@/lib/utils"
 
 // Define types for our case data
 interface Case {
@@ -154,27 +155,30 @@ export default function CaseList() {
                       </CardDescription>
                     </div>
                     <div className="flex items-center gap-2">
+                      {/* Fixed: Use custom styling instead of unsupported variant */}
                       <Badge
-                        variant={
+                        className={cn(
                           caseItem.urgency === "urgent"
-                            ? "destructive"
+                            ? "bg-red-100 text-red-800"
                             : caseItem.urgency === "expedited"
-                              ? "warning"
-                              : "outline"
-                        }
+                              ? "bg-yellow-100 text-yellow-800"
+                              : "bg-gray-100 text-gray-800",
+                        )}
                       >
                         {caseItem.urgency.charAt(0).toUpperCase() + caseItem.urgency.slice(1)}
                       </Badge>
+
+                      {/* Fixed: Use custom styling instead of unsupported variant */}
                       <Badge
-                        variant={
+                        className={cn(
                           caseItem.status === "completed"
-                            ? "default"
+                            ? "bg-blue-100 text-blue-800"
                             : caseItem.status === "accepted"
-                              ? "success"
+                              ? "bg-green-100 text-green-800"
                               : caseItem.status === "rejected"
-                                ? "destructive"
-                                : "secondary"
-                        }
+                                ? "bg-red-100 text-red-800"
+                                : "bg-gray-100 text-gray-800",
+                        )}
                       >
                         {caseItem.status.charAt(0).toUpperCase() + caseItem.status.slice(1)}
                       </Badge>

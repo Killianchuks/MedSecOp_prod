@@ -1,21 +1,23 @@
 import { LRUCache } from "lru-cache"
 
-// Define cache options type
+// Update the CacheOptions type to better match LRUCache's expected types
 type CacheOptions = {
   max?: number
   ttl?: number // Time to live in milliseconds
   updateAgeOnGet?: boolean
+  ttlAutopurge?: boolean
 }
 
-// Define the cache key type
-export type CacheKey = string
-
-// Create a default cache instance
-const defaultOptions: CacheOptions = {
+// Update the defaultOptions to ensure ttl is always defined
+const defaultOptions = {
   max: 500, // Maximum number of items
   ttl: 1000 * 60 * 5, // 5 minutes default TTL
   updateAgeOnGet: true, // Reset TTL when item is accessed
-}
+  ttlAutopurge: true, // Automatically purge expired items
+} as const
+
+// Define the cache key type
+export type CacheKey = string
 
 // Create a singleton cache instance
 const globalCache = new LRUCache<CacheKey, any>(defaultOptions)
@@ -25,7 +27,8 @@ export class CacheManager {
   private cache: LRUCache<CacheKey, any>
   private namespace: string
 
-  constructor(namespace: string, options: CacheOptions = {}) {
+  // Update the constructor to properly handle options
+  constructor(namespace: string, options: Partial<CacheOptions> = {}) {
     this.namespace = namespace
     this.cache = globalCache
   }
@@ -35,10 +38,14 @@ export class CacheManager {
     return `${this.namespace}:${key}`
   }
 
-  // Set a value in the cache
+  // Update the set method to handle ttl properly
   set(key: CacheKey, value: any, ttl?: number): void {
     const namespacedKey = this.getNamespacedKey(key)
-    this.cache.set(namespacedKey, value, ttl ? { ttl } : undefined)
+    if (ttl !== undefined) {
+      this.cache.set(namespacedKey, value, { ttl })
+    } else {
+      this.cache.set(namespacedKey, value)
+    }
   }
 
   // Get a value from the cache
@@ -69,7 +76,7 @@ export class CacheManager {
     }
   }
 
-  // Get a value from cache or compute it if not present
+  // Update the getOrCompute method to handle ttl properly
   async getOrCompute<T>(key: CacheKey, compute: () => Promise<T>, ttl?: number): Promise<T> {
     const namespacedKey = this.getNamespacedKey(key)
 
@@ -83,7 +90,11 @@ export class CacheManager {
     const computedValue = await compute()
 
     // Store in cache
-    this.cache.set(namespacedKey, computedValue, ttl ? { ttl } : undefined)
+    if (ttl !== undefined) {
+      this.cache.set(namespacedKey, computedValue, { ttl })
+    } else {
+      this.cache.set(namespacedKey, computedValue)
+    }
 
     return computedValue
   }
@@ -92,12 +103,9 @@ export class CacheManager {
 // Create cache instances for different parts of the application
 export const userCache = new CacheManager("users")
 export const medicalCaseCache = new CacheManager("medical-cases")
-export const regionCache = new CacheManager("regions", {
-  ttl: 1000 * 60 * 60 * 24, // 24 hours TTL for region data
-})
-export const systemSettingsCache = new CacheManager("system-settings", {
-  ttl: 1000 * 60 * 30, // 30 minutes TTL for system settings
-})
+// Update the regionCache and systemSettingsCache definitions
+export const regionCache = new CacheManager("regions")
+export const systemSettingsCache = new CacheManager("system-settings")
 export const doctorCache = new CacheManager("doctors")
 export const patientCache = new CacheManager("patients")
 

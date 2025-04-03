@@ -1,11 +1,12 @@
-import NextAuth from "next-auth"
+import NextAuth from "next-auth/next"
 import CredentialsProvider from "next-auth/providers/credentials"
 import { createClient } from "@supabase/supabase-js"
+import type { NextAuthOptions } from "next-auth"
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ""
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
 
-const handler = NextAuth({
+export const authOptions: NextAuthOptions = {
   providers: [
     CredentialsProvider({
       name: "Credentials",
@@ -56,8 +57,8 @@ const handler = NextAuth({
     },
     async session({ session, token }) {
       if (session.user) {
-        session.user.id = token.id as string
-        session.user.role = token.role as string
+        session.user.id = token.id
+        session.user.role = token.role
       }
       return session
     },
@@ -71,7 +72,9 @@ const handler = NextAuth({
     strategy: "jwt",
   },
   secret: process.env.NEXTAUTH_SECRET,
-})
+}
+
+const handler = NextAuth(authOptions)
 
 export { handler as GET, handler as POST }
 

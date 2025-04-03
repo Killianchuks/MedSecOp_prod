@@ -23,8 +23,12 @@ export async function POST(req: NextRequest) {
       source,
     }
 
-    // Log the error
-    await logError({ message, stack }, severity as LogSeverity, enhancedContext)
+    // Log the error - add the name property to satisfy the Error interface
+    await logError({ 
+      message, 
+      stack, 
+      name: "ClientError" // This is the only change - adding the name property
+    }, severity as LogSeverity, enhancedContext)
 
     return NextResponse.json({ success: true })
   } catch (error) {
@@ -32,4 +36,3 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Failed to log error" }, { status: 500 })
   }
 }
-

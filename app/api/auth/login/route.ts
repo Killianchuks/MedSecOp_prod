@@ -3,6 +3,23 @@ import { sql, verifyPassword } from "@/lib/db"
 import { SignJWT } from "jose"
 import { cookies } from "next/headers"
 
+// Define the SQL result type
+interface SqlResult {
+  rows: any[]
+}
+
+// Define the user type
+interface User {
+  id: string
+  email: string
+  password_hash: string
+  password_salt: string
+  first_name: string
+  last_name: string
+  role: string
+  is_verified: boolean
+}
+
 export async function POST(request: NextRequest) {
   try {
     const { email, password } = await request.json()
@@ -13,13 +30,13 @@ export async function POST(request: NextRequest) {
     }
 
     // Get user from database
-    const result = await sql`
+    const result = (await sql`
       SELECT id, email, password_hash, password_salt, first_name, last_name, role, is_verified
       FROM users
       WHERE email = ${email}
-    `
+    `) as SqlResult
 
-    const user = result.rows[0]
+    const user = result.rows[0] as User | undefined
 
     // Check if user exists
     if (!user) {

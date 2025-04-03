@@ -1,4 +1,4 @@
-import { query } from "./db"
+import { sql, query } from "./db"
 
 // Audit event types
 export type AuditEventType =
@@ -41,6 +41,21 @@ export type AuditEventType =
   // Admin events
   | "admin_action"
   | "system_configuration_changed"
+  // Issue events
+  | "issue_created"
+  | "issue_updated"
+
+// Define a type for database rows
+interface DbRow {
+  id: string
+  user_id: string
+  event_type: string
+  details: Record<string, any>
+  ip_address: string | null
+  user_agent: string | null
+  timestamp: Date
+  count?: string
+}
 
 // Audit log interface
 export interface AuditLog {
@@ -62,12 +77,11 @@ export async function logAuditEvent(
   userAgent?: string,
 ): Promise<void> {
   try {
-    await query(
-      `INSERT INTO audit_logs (
+    await sql`
+      INSERT INTO audit_logs (
         user_id, event_type, details, ip_address, user_agent
-      ) VALUES ($1, $2, $3, $4, $5)`,
-      [userId, eventType, details, ipAddress, userAgent],
-    )
+      ) VALUES (${userId}, ${eventType}, ${details}, ${ipAddress}, ${userAgent})
+    `
   } catch (error) {
     console.error("Failed to log audit event:", error)
     // Don't throw - audit logging should not block the main flow
@@ -82,35 +96,49 @@ export async function getUserAuditLogs(
   eventTypes?: AuditEventType[],
 ): Promise<{ logs: AuditLog[]; total: number }> {
   try {
-    let whereClause = "WHERE user_id = $1"
-    const queryParams: any[] = [userId]
-
+    // Get total count
+    let countQuery
     if (eventTypes && eventTypes.length > 0) {
-      whereClause += ` AND event_type IN (${eventTypes.map((_, i) => `$${i + 2}`).join(", ")})`
-      queryParams.push(...eventTypes)
+      countQuery = await sql`
+        SELECT COUNT(*) FROM audit_logs 
+        WHERE user_id = ${userId} 
+        AND event_type IN (${eventTypes})
+      `
+    } else {
+      countQuery = await sql`
+        SELECT COUNT(*) FROM audit_logs 
+        WHERE user_id = ${userId}
+      `
     }
 
-    // Get total count
-    const countResult = await query(`SELECT COUNT(*) FROM audit_logs ${whereClause}`, queryParams)
-
-    const total = Number.parseInt(countResult.rows[0].count)
+    const total = Number.parseInt(countQuery.rows[0].count)
 
     // Get paginated results
-    const paginatedParams = [...queryParams, limit, offset]
-    const result = await query(
-      `SELECT * FROM audit_logs ${whereClause} 
-       ORDER BY timestamp DESC 
-       LIMIT $${queryParams.length + 1} OFFSET $${queryParams.length + 2}`,
-      paginatedParams,
-    )
+    let result
+    if (eventTypes && eventTypes.length > 0) {
+      result = await sql`
+        SELECT * FROM audit_logs 
+        WHERE user_id = ${userId} 
+        AND event_type IN (${eventTypes})
+        ORDER BY timestamp DESC 
+        LIMIT ${limit} OFFSET ${offset}
+      `
+    } else {
+      result = await sql`
+        SELECT * FROM audit_logs 
+        WHERE user_id = ${userId}
+        ORDER BY timestamp DESC 
+        LIMIT ${limit} OFFSET ${offset}
+      `
+    }
 
-    const logs = result.rows.map((row) => ({
+    const logs = result.rows.map((row: DbRow) => ({
       id: row.id,
       userId: row.user_id,
-      eventType: row.event_type,
+      eventType: row.event_type as AuditEventType,
       details: row.details,
-      ipAddress: row.ip_address,
-      userAgent: row.user_agent,
+      ipAddress: row.ip_address || undefined,
+      userAgent: row.user_agent || undefined,
       timestamp: row.timestamp,
     }))
 
@@ -131,62 +159,58 @@ export async function getSystemAuditLogs(
   userId?: string,
 ): Promise<{ logs: AuditLog[]; total: number }> {
   try {
-    let whereClause = ""
+    // Build dynamic query parts
+    const conditions = []
     const queryParams: any[] = []
     let paramIndex = 1
 
-    // Build where clause
-    const conditions: string[] = []
-
+    // Build WHERE clause
     if (eventTypes && eventTypes.length > 0) {
-      conditions.push(`event_type IN (${eventTypes.map((_, i) => `$${paramIndex + i}`).join(", ")})`)
+      const placeholders = eventTypes.map(() => `$${paramIndex++}`).join(", ")
+      conditions.push(`event_type IN (${placeholders})`)
       queryParams.push(...eventTypes)
-      paramIndex += eventTypes.length
     }
 
     if (startDate) {
-      conditions.push(`timestamp >= $${paramIndex}`)
+      conditions.push(`timestamp >= $${paramIndex++}`)
       queryParams.push(startDate)
-      paramIndex++
     }
 
     if (endDate) {
-      conditions.push(`timestamp <= $${paramIndex}`)
+      conditions.push(`timestamp <= $${paramIndex++}`)
       queryParams.push(endDate)
-      paramIndex++
     }
 
     if (userId) {
-      conditions.push(`user_id = $${paramIndex}`)
+      conditions.push(`user_id = $${paramIndex++}`)
       queryParams.push(userId)
-      paramIndex++
     }
 
-    if (conditions.length > 0) {
-      whereClause = `WHERE ${conditions.join(" AND ")}`
-    }
+    // Construct WHERE clause if conditions exist
+    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : ""
 
     // Get total count
-    const countResult = await query(`SELECT COUNT(*) FROM audit_logs ${whereClause}`, queryParams)
-
+    const countQuery = `SELECT COUNT(*) FROM audit_logs ${whereClause}`
+    const countResult = await query(countQuery, queryParams)
     const total = Number.parseInt(countResult.rows[0].count)
 
     // Get paginated results
     const paginatedParams = [...queryParams, limit, offset]
-    const result = await query(
-      `SELECT * FROM audit_logs ${whereClause} 
-       ORDER BY timestamp DESC 
-       LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`,
-      paginatedParams,
-    )
+    const selectQuery = `
+      SELECT * FROM audit_logs 
+      ${whereClause}
+      ORDER BY timestamp DESC 
+      LIMIT $${paramIndex++} OFFSET $${paramIndex++}
+    `
+    const result = await query(selectQuery, paginatedParams)
 
-    const logs = result.rows.map((row) => ({
+    const logs = result.rows.map((row: DbRow) => ({
       id: row.id,
       userId: row.user_id,
-      eventType: row.event_type,
+      eventType: row.event_type as AuditEventType,
       details: row.details,
-      ipAddress: row.ip_address,
-      userAgent: row.user_agent,
+      ipAddress: row.ip_address || undefined,
+      userAgent: row.user_agent || undefined,
       timestamp: row.timestamp,
     }))
 

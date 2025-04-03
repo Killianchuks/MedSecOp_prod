@@ -7,7 +7,9 @@ import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { CheckCircle, XCircle, FileText, Image, MessageSquare, Clock, CheckSquare } from "lucide-react"
 import { DicomViewer } from "../dicom/dicom-viewer"
-import { useToast } from "@/components/ui/use-toast"
+// Fix: Import toast directly instead of useToast hook
+import { toast } from "@/components/ui/use-toast"
+import { cn } from "@/lib/utils"
 
 // Define types for our case data
 interface CaseData {
@@ -41,7 +43,8 @@ export function CaseDetail({
     hasImages: true,
     hasDocuments: true,
   })
-  const { toast } = useToast()
+  // Fix: Remove useToast hook
+  // const { toast } = useToast()
 
   // Function to update case status and notify admin
   const updateCaseStatus = (newStatus: "pending" | "accepted" | "rejected" | "completed") => {
@@ -90,6 +93,9 @@ export function CaseDetail({
     updateCaseStatus("completed")
   }
 
+  // Rest of the component remains the same...
+  // (I'm omitting the rest of the code for brevity, but it should remain unchanged)
+
   // Render the appropriate content based on active section
   const renderContent = () => {
     switch (activeSection) {
@@ -111,14 +117,15 @@ export function CaseDetail({
               </div>
               <div>
                 <p className="text-sm font-medium text-gray-500">Urgency</p>
+                {/* Fixed: Use custom styling instead of unsupported variant */}
                 <Badge
-                  variant={
+                  className={cn(
                     caseData.urgency === "urgent"
-                      ? "destructive"
+                      ? "bg-red-100 text-red-800"
                       : caseData.urgency === "expedited"
-                        ? "warning"
-                        : "outline"
-                  }
+                        ? "bg-yellow-100 text-yellow-800"
+                        : "bg-gray-100 text-gray-800",
+                  )}
                 >
                   {caseData.urgency.charAt(0).toUpperCase() + caseData.urgency.slice(1)}
                 </Badge>
@@ -297,16 +304,17 @@ export function CaseDetail({
               {caseData.specialty} - {caseData.submittedDate}
             </CardDescription>
           </div>
+          {/* Fixed: Use custom styling instead of unsupported variant */}
           <Badge
-            variant={
+            className={cn(
               caseData.status === "completed"
-                ? "default"
+                ? "bg-blue-100 text-blue-800"
                 : caseData.status === "accepted"
-                  ? "success"
+                  ? "bg-green-100 text-green-800"
                   : caseData.status === "rejected"
-                    ? "destructive"
-                    : "secondary"
-            }
+                    ? "bg-red-100 text-red-800"
+                    : "bg-gray-100 text-gray-800",
+            )}
           >
             {caseData.status.charAt(0).toUpperCase() + caseData.status.slice(1)}
           </Badge>
