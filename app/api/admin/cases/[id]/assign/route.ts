@@ -1,9 +1,12 @@
-import { NextResponse } from "next/server"
-import { db, cases, users } from "@/lib/db"
+// app/api/admin/cases/[id]/assign/route.ts
+import { NextRequest, NextResponse } from "next/server"
+import { db, cases, users, eq } from "@/lib/db/db-client"  // Updated import path
 import { getCurrentUser } from "@/lib/auth"
-import { eq } from "drizzle-orm"
 
-export async function PUT(req: Request, { params }: { params: { id: string } }) {
+export async function PUT(
+  req: NextRequest,
+  context: { params: { id: string } }
+) {
   try {
     // Get the current user
     const currentUser = await getCurrentUser()
@@ -14,7 +17,7 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
     }
 
     // Get the case ID from the params
-    const caseId = Number.parseInt(params.id)
+    const caseId = Number.parseInt(context.params.id)
 
     // Parse the request body
     const body = await req.json()
@@ -59,4 +62,3 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
     return NextResponse.json({ message: "An error occurred while assigning the case" }, { status: 500 })
   }
 }
-

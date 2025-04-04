@@ -13,10 +13,13 @@ export interface User {
     // Add other case fields as needed
   }
   
+  // Define SQL-related types inline
+  interface SQLWrapper {
+    getSQL(): { sql: string; params: unknown[] };
+  }
+  
   // Add type definitions for the db-client.js exports
   declare module '@/lib/db-client' {
-    import { SQLWrapper } from 'drizzle-orm';
-    
     export const cases: any;
     export const users: any;
     export const eq: (left: any, right: any) => SQLWrapper;
