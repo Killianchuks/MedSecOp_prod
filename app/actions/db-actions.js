@@ -5,7 +5,6 @@ import { Pool } from 'pg';
 // Create a connection pool (this only runs on the server)
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  // You can add additional options here if needed
   ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
 });
 
@@ -112,6 +111,47 @@ export async function remove(table, id) {
  */
 export async function query(sql, params = []) {
   return executeQuery(sql, params);
+}
+
+/**
+ * SQL template literal tag for creating SQL queries
+ * @param {Array} strings - Template strings
+ * @param {...any} values - Template values
+ * @returns {Object} SQL query object
+ */
+export function sql(strings, ...values) {
+  const text = strings.reduce((result, str, i) => 
+    result + str + (i < values.length ? `$${i + 1}` : ''), '');
+  
+  return {
+    text,
+    values,
+    execute: async () => {
+      return executeQuery(text, values);
+    }
+  };
+}
+
+/**
+ * Execute a function within a transaction
+ * @param {Function} callback - Function to execute within transaction
+ * @returns {Promise<any>} Result of the callback function
+ */
+export async function withTransaction(callback) {
+  const client = await pool.connect();
+  
+  try {
+    await client.query('BEGIN');
+    const result = await callback(client);
+    await client.query('COMMIT');
+    return result;
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Transaction error:', error);
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 
 // Export the pool for direct access if needed
