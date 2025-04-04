@@ -1,48 +1,40 @@
-let userConfig = undefined
-try {
-  userConfig = await import('./v0-user-next.config')
-} catch (e) {
-  // ignore error
-}
-
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
-  typescript: {
-    ignoreBuildErrors: true,
-  },
-  images: {
-    unoptimized: true,
-  },
-  experimental: {
-    webpackBuildWorker: true,
-    parallelServerBuildTraces: true,
-    parallelServerCompiles: true,
-  },
-}
-
-mergeConfig(nextConfig, userConfig)
-
-function mergeConfig(nextConfig, userConfig) {
-  if (!userConfig) {
-    return
-  }
-
-  for (const key in userConfig) {
-    if (
-      typeof nextConfig[key] === 'object' &&
-      !Array.isArray(nextConfig[key])
-    ) {
-      nextConfig[key] = {
-        ...nextConfig[key],
-        ...userConfig[key],
-      }
-    } else {
-      nextConfig[key] = userConfig[key]
+  reactStrictMode: true,
+  webpack: (config, { isServer }) => {
+    if (!isServer) {
+      // Don't resolve Node.js built-in modules on the client side
+      config.resolve.fallback = {
+        fs: false,
+        net: false,
+        tls: false,
+        dns: false,
+        child_process: false,
+        path: false,
+        crypto: false,
+        stream: false,
+        http: false,
+        https: false,
+        zlib: false,
+        util: false,
+        url: false,
+        querystring: false,
+        os: false,
+      };
+      
+      // Mark problematic packages as external on the client side
+      config.externals.push({
+        'pg': 'commonjs pg',
+        'pg-hstore': 'commonjs pg-hstore',
+        '@neondatabase/serverless': 'commonjs @neondatabase/serverless',
+        'postgres': 'commonjs postgres',
+        'better-sqlite3': 'commonjs better-sqlite3',
+        'sqlite3': 'commonjs sqlite3',
+        'mysql2': 'commonjs mysql2',
+      });
     }
-  }
-}
+    return config;
+  },
+};
 
-export default nextConfig
+export default nextConfig;
