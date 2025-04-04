@@ -44,6 +44,10 @@ export async function POST(request: NextRequest) {
       email_confirm: true,
     })
 
+    // ✅ Add these debug logs just below that
+    console.log("DEBUG - Supabase Auth Error:", authError)
+    console.log("DEBUG - Auth User Data:", authUser)
+
     if (authError) {
       console.error("Error creating auth user:", authError)
       return NextResponse.json({ error: "Failed to create user account" }, { status: 500 })
@@ -97,4 +101,3 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "An unexpected error occurred during registration" }, { status: 500 })
   }
 }
-
