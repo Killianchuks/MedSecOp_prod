@@ -115,21 +115,23 @@ export async function query(sql, params = []) {
 
 /**
  * SQL template literal tag for creating SQL queries
+ * This is now an async function to comply with Server Actions requirements
  * @param {Array} strings - Template strings
  * @param {...any} values - Template values
- * @returns {Object} SQL query object
+ * @returns {Promise<Object>} SQL query object
  */
-export function sql(strings, ...values) {
+export async function sql(strings, ...values) {
   const text = strings.reduce((result, str, i) => 
     result + str + (i < values.length ? `$${i + 1}` : ''), '');
   
-  return {
+  // Return a promise to make this an async function
+  return Promise.resolve({
     text,
     values,
     execute: async () => {
       return executeQuery(text, values);
     }
-  };
+  });
 }
 
 /**
@@ -154,5 +156,11 @@ export async function withTransaction(callback) {
   }
 }
 
-// Export the pool for direct access if needed
-export { pool };
+/**
+ * Get the database pool
+ * This is an async function to comply with Server Actions requirements
+ * @returns {Promise<Pool>} Database pool
+ */
+export async function getPool() {
+  return Promise.resolve(pool);
+}

@@ -1,0 +1,10 @@
+import { Pool } from 'pg';
+
+// This code only runs on the server
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+});
+
+export async function query(text, params) {
+  return pool.query(text, params);
+}
